@@ -58,10 +58,12 @@
   <p class="hint">
     每行输入一个小节编号；编号前加 <code>|:</code> 表示反复起点，编号后加
     <code>:|xN</code>（N 为 2~9）表示反复终点，反复段可嵌套。
+    行末可附 <code>[拍数@BPM]</code> 或 <code>[拍数]</code>：拍数默认 4，初始速度
+    120 BPM，未标速度的小节沿用上一演奏小节的速度；起止时间单位为毫秒。
     展开结果超过 5000 小节时将停止并指出导致超限的源行。
   </p>
   <textarea id="input" rows="12" spellcheck="false"
-    placeholder="例如：&#10;1&#10;2&#10;|:3&#10;4&#10;|:5&#10;6:|x3&#10;7:|x2&#10;8"></textarea>
+    placeholder="例如：&#10;1[4@120]&#10;2&#10;|:3&#10;4[2]&#10;|:5&#10;6:|x3&#10;7:|x2[4@90]&#10;8"></textarea>
   <div class="toolbar">
     <button id="expandBtn" class="primary">展开</button>
     <button id="exampleBtn">填入示例</button>
@@ -72,7 +74,7 @@
   <p id="summary"></p>
   <table id="result" hidden>
     <thead>
-      <tr><th>演奏序号</th><th>原小节编号</th><th>源行号</th></tr>
+      <tr><th>演奏序号</th><th>原小节编号</th><th>源行号</th><th>起始时间(毫秒)</th><th>结束时间(毫秒)</th></tr>
     </thead>
     <tbody></tbody>
   </table>
@@ -85,7 +87,7 @@ let lastRows = [];
 $("expandBtn").addEventListener("click", doExpand);
 $("clearBtn").addEventListener("click", () => { $("input").value = ""; reset(); $("input").focus(); });
 $("exampleBtn").addEventListener("click", () => {
-  $("input").value = ["1", "2", "|:3", "4", "|:5", "6:|x3", "7:|x2", "8"].join("\n");
+  $("input").value = ["1[4@120]", "2", "|:3", "4[2]", "|:5", "6:|x3", "7:|x2[4@90]", "8"].join("\n");
   doExpand();
 });
 $("csvBtn").addEventListener("click", downloadCsv);
@@ -118,12 +120,13 @@ async function doExpand() {
     return;
   }
   lastRows = data.rows;
-  $("summary").textContent = `展开成功，共 ${data.count} 小节`;
+  const total = data.rows.length ? data.rows[data.rows.length - 1].end_ms : 0;
+  $("summary").textContent = `展开成功，共 ${data.count} 小节，总时长 ${total} 毫秒`;
   const tbody = $("result").querySelector("tbody");
   const frag = document.createDocumentFragment();
   for (const r of data.rows) {
     const tr = document.createElement("tr");
-    for (const v of [r.seq, r.num, r.line]) {
+    for (const v of [r.seq, r.num, r.line, r.start_ms, r.end_ms]) {
       const td = document.createElement("td");
       td.textContent = v;
       tr.appendChild(td);
@@ -146,8 +149,8 @@ function showErrors(errors) {
 }
 
 function downloadCsv() {
-  const lines = ["演奏序号,原小节编号,源行号"];
-  for (const r of lastRows) lines.push(`${r.seq},${r.num},${r.line}`);
+  const lines = ["演奏序号,原小节编号,源行号,起始时间(毫秒),结束时间(毫秒)"];
+  for (const r of lastRows) lines.push(`${r.seq},${r.num},${r.line},${r.start_ms},${r.end_ms}`);
   // 加 BOM 以便 Excel 正确识别 UTF-8 中文表头
   const blob = new Blob(["﻿" + lines.join("\r\n") + "\r\n"],
     { type: "text/csv;charset=utf-8" });
